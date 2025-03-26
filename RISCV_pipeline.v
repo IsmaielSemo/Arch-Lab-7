@@ -34,31 +34,37 @@ module RISCV_pipeline (input clk,reset,  input [1:0] ledSel, input [3:0] ssdSel,
     wire [31:0] EX_MEM_Rd;
     wire EX_MEM_Zero;
     wire [31:0] MEM_WB_Mem_out, MEM_WB_ALU_out;
-    wire [7:0] MEM_WB_Ctrl;
+    wire [1:0] MEM_WB_Ctrl;
     wire [4:0] MEM_WB_Rd;
+    
     NbitRegister #(32) PC( PC_in , reset, 1'b1, clk, PC_out);
     InstMem Inst ( PC_out[7:2] ,  instruction); 
     NbitRegister #(64) IF_ID ({PC_out,instruction}, rst ,1'b1, clk,  {IF_ID_PC,IF_ID_Inst} );
     
     
-    ControlUnit CU(IF_ID_Inst [6:2], Branch,  MemRead,  MemtoReg,   ALUOp,    MemWrite, ALUSrc,  RegWrite); //why 6:2 not 6:0 as in the figure (og was 6:2)
+    ControlUnit CU(IF_ID_Inst [6:2], Branch,  MemRead,  MemtoReg,   ALUOp,    MemWrite, ALUSrc,  RegWrite); 
     ImmGen imm (imm_out, IF_ID_Inst);        
     Register_Reset RF(clk,reset,MEM_WB_Ctrl[0],IF_ID_Inst [19:15], IF_ID_Inst [24:20], IF_ID_Inst [11:7], WriteData, data_in1, data_in2); //should data_in1 and data_in2 be outputs or inputs (refer to RF module and change over there if necessary)
-  
-    NbitRegister #(155) ID_EX ({IF_ID_PC,data_in1,data_in2, imm_out, IF_ID_Inst[30], IF_ID_Inst[14:12],IF_ID_Inst[19:15], IF_ID_Inst[24:20], IF_ID_Inst[11: 7],Branch, Mem, MemtoReg, ALUOp,MemWrite, ALUSrc, RegWrite}, rst,1'b1, clk,{ID_EX_PC,ID_EX_RegR1,ID_EX_RegR2,ID_EX_Imm, ID_EX_Func,ID_EX_Rs1,ID_EX_Rs2,ID_EX_Rd, ID_EX_Ctrl} );
+    NbitRegister #(155) ID_EX ({IF_ID_PC,data_in1,data_in2, imm_out, {IF_ID_Inst[30], IF_ID_Inst[14:12]},IF_ID_Inst[19:15], IF_ID_Inst[24:20], IF_ID_Inst[11: 7],{Branch, MemRead, MemtoReg, ALUOp,MemWrite, ALUSrc, RegWrite}}, rst,1'b1, clk,{ID_EX_PC,ID_EX_RegR1,ID_EX_RegR2,ID_EX_Imm, ID_EX_Func,ID_EX_Rs1,ID_EX_Rs2,ID_EX_Rd, ID_EX_Ctrl} );
     
     Nbit_2x1mux #(32) MUX(ID_EX_RegR2,ID_EX_Imm,ID_EX_Ctrl[1],B);
-    ALUControlUnit ALUcontrol(ID_EX_Ctrl[4:3],ID_EX_Rs1,ID_EX_Func,ALU_sel); 
-    NBitALU #(32) ALU(clk,ID_EX_RegR1,B, ALU_sel,ALU_Result,zero_flag);
-    
+//  ALUControlUnit ALUcontrol(ID_EX_Ctrl[4:3],ID_EX_Rs1,ID_EX_Func,ALU_sel); 
+    ALUControlUnit ALUcontrol(ID_EX_Ctrl[4:3],ID_EX_Func[2:0],ID_EX_Func[3],ALU_sel); 
+    NBitALU #(32) ALU(clk,ID_EX_RegR1,B, ALU_sel,ALU_Result,zero_flag);    
    // ID_EX_Ctrl[5],ID_EX_Ctrl[0], ID_EX_Ctrl[7], ID_EX_Ctrl[6], ID_EX_Ctrl[2]
-    NbitRegister #(107) EX_MEM ({Sum, ALU_Result, zero_flag ,ID_EX_RegR2,ID_EX_Rd, ID_EX_Ctrl[5],ID_EX_Ctrl[0], ID_EX_Ctrl[7], ID_EX_Ctrl[6], ID_EX_Ctrl[2]}, rst, 1'b1, clk , {EX_MEM_BranchAddOut, EX_MEM_ALU_out, EX_MEM_Zero, EX_MEM_RegR2, EX_MEM_Rd, EX_MEM_Ctrl});
+    NbitRegister #(107) EX_MEM ({Sum, ALU_Result, zero_flag ,ID_EX_RegR2,ID_EX_Rd, {ID_EX_Ctrl[5],ID_EX_Ctrl[0], ID_EX_Ctrl[7], ID_EX_Ctrl[6], ID_EX_Ctrl[2]}}, rst, 1'b1, clk , {EX_MEM_BranchAddOut, EX_MEM_ALU_out, EX_MEM_Zero, EX_MEM_RegR2, EX_MEM_Rd, EX_MEM_Ctrl});
     //wire [...] MEM_WB_Mem_out, MEM_WB_ALU_out;
     
     
-    DataMem data_mem(clk,MemRead,MemWrite,ALU_Result[7:2] ,EX_MEM_RegR2 ,data_final);
+    //order of control signals after EX_MEM is: MemtoReg RegWrite Branch MemRead MemWrite 
+    
+    
+    //DataMem data_mem(clk,MemRead,MemWrite,EX_MEM_ALU_out[7:2] ,EX_MEM_RegR2 ,data_final);
+    DataMem data_mem(clk,EX_MEM_Ctrl[1],EX_MEM_Ctrl[0],EX_MEM_ALU_out[7:2] ,EX_MEM_RegR2 ,data_final);
     //EX_MEM_Ctrl[5], EX_MEM_Ctrl[0]
-    NbitRegister #(40) MEM_WB ({data_final,EX_MEM_ALU_out[7:2],EX_MEM_Ctrl[4], EX_MEM_Ctrl[0]} ,rst,1'b1, clk , {MEM_WB_Mem_out, MEM_WB_ALU_out, MEM_WB_Rd, MEM_WB_Ctrl} );
+    NbitRegister #(45) MEM_WB ({data_final,EX_MEM_ALU_out[7:2],EX_MEM_Rd, {EX_MEM_Ctrl[4], EX_MEM_Ctrl[0]}} ,rst,1'b1, clk , {MEM_WB_Mem_out, MEM_WB_ALU_out, MEM_WB_Rd, MEM_WB_Ctrl} );
+    
+    //order of control signals after MEM_WB is: MemtoReg RegWrite
     
     Nbit_2x1mux #(32) mux2(ALU_Result,MEM_WB_Mem_out,MEM_WB_Ctrl[1], WriteData);
     
@@ -66,9 +72,10 @@ module RISCV_pipeline (input clk,reset,  input [1:0] ledSel, input [3:0] ssdSel,
     Nbit_shift_left #(32) shift(ID_EX_Imm,shifted_imm_out);
     //N_bit_adder #(32) add1( 32'd4 , PC_out, add4 );
     N_bit_adder #(32) add1( 32'd4 , IF_ID_PC, add4 );
-    N_bit_adder #(32) add2(shifted_imm_out, IF_ID_PC, Sum);
+    N_bit_adder #(32) add2(shifted_imm_out, ID_EX_PC, Sum);
     //assign last_sel = zero_flag & Branch;
-    assign last_sel = EX_MEM_Zero & ID_EX_Ctrl[7];
+    //assign last_sel = EX_MEM_Zero & ID_EX_Ctrl[7];
+    assign last_sel = EX_MEM_Zero & EX_MEM_Ctrl[2];
     Nbit_2x1mux #(32) mux3(add4,Sum, last_sel,PC_in);
     
     
@@ -139,7 +146,7 @@ assign signals ={2'b00,ALUOp,ALU_Result,zero_flag,last_sel,Branch,MemRead,MemtoR
 //Below is the code for pipelined from my report
     
     // wires declarations
-    // the module "Register" is an n-bit register module with n as a parameter// and with I/O’s (clk, rst, load, data_in, data_out) in sequence wire [...] IF_ID_PC, IF_ID_Inst;
+    // the module "Register" is an n-bit register module with n as a parameter// and with I/Oâ€™s (clk, rst, load, data_in, data_out) in sequence wire [...] IF_ID_PC, IF_ID_Inst;
     //Register #() IF_ID (clk,rst,1'b1, {....}, {IF_ID_PC,IF_ID_Inst} );
 //    wire [...] ID_EX_PC, ID_EX_RegR1, ID_EX_RegR2, ID_EX_Imm;
 //    wire [...] ID_EX_Ctrl;

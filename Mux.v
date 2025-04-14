@@ -35,7 +35,7 @@ always @(*) begin
         4'b0001: out = OR;
         4'b0010: out = ADD;
         4'b0110: out = SUB;     
-        default: out = N-1'b0;  // Default case
+       // default: out = N-1'b0;  // Default case
     endcase
 end
 endmodule

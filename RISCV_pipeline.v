@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module RISCV_pipeline (
     input clk, reset, 
     input [1:0] ledSel, 
@@ -41,7 +43,7 @@ module RISCV_pipeline (
     wire [31:0] MEM_WB_Mem_out, MEM_WB_ALU_out;
     wire [1:0] MEM_WB_Ctrl;
     wire [4:0] MEM_WB_Rd;
-
+    
     // Register for PC with initialization on reset
     reg [31:0] PC_in; // Register for PC input logic
 
@@ -117,7 +119,13 @@ module RISCV_pipeline (
     );
 
     // ALU Control
-    ALUControlUnit ALUcontrol (
+//    ALUControlUnit ALUcontrol (
+//        ID_EX_Ctrl[4:3],
+//        ID_EX_Func[2:0],
+//        ID_EX_Func[3],
+//        ALU_sel
+//    );
+ALUControlUnit ALUcontrol (
         ID_EX_Ctrl[4:3],
         ID_EX_Func[2:0],
         ID_EX_Func[3],
@@ -182,7 +190,7 @@ module RISCV_pipeline (
 
     // Multiplexer for Write Data (from ALU or memory)
     Nbit_2x1mux #(32) mux2 (
-        EX_MEM_ALU_out,
+        MEM_WB_ALU_out,
         MEM_WB_Mem_out,
         MEM_WB_Ctrl[1],
         WriteData

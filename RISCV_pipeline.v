@@ -50,13 +50,14 @@ module RISCV_pipeline (
             PC_in <= 32'd0; // Reset PC to 0
         end else begin
             PC_in <= (last_sel) ? EX_MEM_BranchAddOut : add4; // Normal PC or branch PC
+         // PC_in <= (last_sel) ?  add4 : EX_MEM_BranchAddOut; // Normal PC or branch PC  
         end
     end
 
     // Instantiate 32-bit Program Counter Register
     NbitRegister #(32) PC (
         .D(PC_in), 
-        .rst(rst), 
+        .rst(reset), 
         .load(1'b1), 
         .clk(clk), 
         .Q(PC_out)
@@ -70,7 +71,7 @@ module RISCV_pipeline (
     // Pipeline Register IF/ID
     NbitRegister #(64) IF_ID (
         .D({PC_out, instruction}),
-        .rst(rst),
+        .rst(reset),
         .load(1'b1),
         .clk(clk),
         .Q({IF_ID_PC, IF_ID_Inst})
@@ -96,20 +97,20 @@ module RISCV_pipeline (
 
     // Register File
     Register_Reset RF(
-    clk,
-    reset,
-    MEM_WB_Ctrl[0],
-    IF_ID_Inst [19:15],
-    IF_ID_Inst [24:20],
-    MEM_WB_Rd,
-    WriteData,
-    data_in1,
-    data_in2); 
+        clk,
+        reset,
+        MEM_WB_Ctrl[0],
+        IF_ID_Inst [19:15],
+        IF_ID_Inst [24:20],
+        MEM_WB_Rd,
+        WriteData,
+        data_in1,
+        data_in2); 
 
     // Pipeline Register ID/EX
     NbitRegister #(200) ID_EX (
         .D({IF_ID_PC, data_in1, data_in2, imm_out, IF_ID_Inst[30], IF_ID_Inst[14:12], IF_ID_Inst[19:15], IF_ID_Inst[24:20], IF_ID_Inst[11:7], Branch, MemRead, MemtoReg, ALUOp, MemWrite, ALUSrc, RegWrite}),
-        .rst(rst),
+        .rst(reset),
         .load(1'b1),
         .clk(clk),
         .Q({ID_EX_PC, ID_EX_RegR1, ID_EX_RegR2, ID_EX_Imm, ID_EX_Func, ID_EX_Rs1, ID_EX_Rs2, ID_EX_Rd, ID_EX_Ctrl})
@@ -152,9 +153,9 @@ module RISCV_pipeline (
     );
 
     // Pipeline Register EX/MEM
-    NbitRegister #(200) EX_MEM (
+    NbitRegister #(107) EX_MEM (
         .D({Sum, ALU_Result, zero_flag, ID_EX_RegR2, ID_EX_Rd, ID_EX_Ctrl[5]/*Memtoreg*/, ID_EX_Ctrl[0]/*Regwrite*/, ID_EX_Ctrl[7]/*Branch*/, ID_EX_Ctrl[6]/*MemRead*/, ID_EX_Ctrl[2]/*Memwrite*/}),
-        .rst(rst),
+        .rst(reset),
         .load(1'b1),
         .clk(clk),
         .Q({EX_MEM_BranchAddOut, EX_MEM_ALU_out, EX_MEM_Zero, EX_MEM_RegR2, EX_MEM_Rd, EX_MEM_Ctrl})
@@ -173,7 +174,7 @@ module RISCV_pipeline (
     // Pipeline Register MEM/WB
     NbitRegister #(200) MEM_WB (
         .D({data_final, EX_MEM_ALU_out, EX_MEM_Rd, EX_MEM_Ctrl[4], EX_MEM_Ctrl[3]}),
-        .rst(rst),
+        .rst(reset),
         .load(1'b1),
         .clk(clk),
         .Q({MEM_WB_Mem_out, MEM_WB_ALU_out, MEM_WB_Rd, MEM_WB_Ctrl})
